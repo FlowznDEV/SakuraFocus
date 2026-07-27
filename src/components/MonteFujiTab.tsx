@@ -22,10 +22,11 @@ export const MonteFujiTab: React.FC<MonteFujiTabProps> = ({
   const [completedSessionsToday, setCompletedSessionsToday] = useState<number>(0);
 
   // Ambient sound generator state
-  const [soundType, setSoundType] = useState<'rain' | 'bell' | 'wind' | 'stream' | 'none'>('none');
+  const [soundType, setSoundType] = useState<'rain' | 'stream' | 'wind' | 'forest' | 'bell' | 'fire' | 'none'>('rain');
   const [volume, setVolume] = useState<number>(0.3);
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const activeNodesRef = useRef<{ source?: AudioNode; gain?: GainNode }>({});
+  const activeNodesRef = useRef<{ source?: AudioNode; gain?: GainNode; interval?: any }>({});
 
   const modeConfigs: Record<TimerMode, { title: string; defaultMin: number; xp: number }> = {
     foco: { title: 'Foco Profundo', defaultMin: 25, xp: 30 },
@@ -33,8 +34,12 @@ export const MonteFujiTab: React.FC<MonteFujiTabProps> = ({
     pausa_longa: { title: 'Pausa Longa', defaultMin: 15, xp: 10 },
   };
 
-  // Sound Synthesizer via Web Audio API (no external asset downloads required!)
+  // Sound Synthesizer via Web Audio API (Client-side, zero latency)
   const stopAmbientSound = () => {
+    if (activeNodesRef.current.interval) {
+      clearInterval(activeNodesRef.current.interval);
+      activeNodesRef.current.interval = null;
+    }
     if (activeNodesRef.current.source) {
       try {
         (activeNodesRef.current.source as any).stop?.();
@@ -42,9 +47,10 @@ export const MonteFujiTab: React.FC<MonteFujiTabProps> = ({
       } catch (e) {}
       activeNodesRef.current.source = undefined;
     }
+    setIsPlayingAudio(false);
   };
 
-  const playAmbientSound = (type: 'rain' | 'bell' | 'wind' | 'stream' | 'none') => {
+  const playAmbientSound = (type: 'rain' | 'stream' | 'wind' | 'forest' | 'bell' | 'fire' | 'none', currentVol = volume) => {
     stopAmbientSound();
     if (type === 'none') return;
 
@@ -58,11 +64,10 @@ export const MonteFujiTab: React.FC<MonteFujiTabProps> = ({
       }
 
       const masterGain = ctx.createGain();
-      masterGain.gain.setValueAtTime(volume, ctx.currentTime);
+      masterGain.gain.setValueAtTime(currentVol, ctx.currentTime);
       masterGain.connect(ctx.destination);
 
-      if (type === 'rain' || type === 'wind' || type === 'stream') {
-        // Pink/White noise generator for rain or wind
+      if (type === 'rain' || type === 'wind' || type === 'stream' || type === 'forest' || type === 'fire') {
         const bufferSize = ctx.sampleRate * 3;
         const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const output = noiseBuffer.getChannelData(0);
@@ -74,58 +79,115 @@ export const MonteFujiTab: React.FC<MonteFujiTabProps> = ({
         whiteNoise.buffer = noiseBuffer;
         whiteNoise.loop = true;
 
-        // Filter for specific ambient feel
         const filter = ctx.createBiquadFilter();
         if (type === 'rain') {
           filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(1000, ctx.currentTime);
+          filter.frequency.setValueAtTime(900, ctx.currentTime);
         } else if (type === 'wind') {
           filter.type = 'bandpass';
-          filter.frequency.setValueAtTime(400, ctx.currentTime);
-          filter.Q.setValueAtTime(3, ctx.currentTime);
-        } else {
-          // stream
+          filter.frequency.setValueAtTime(350, ctx.currentTime);
+          filter.Q.setValueAtTime(2.5, ctx.currentTime);
+        } else if (type === 'stream') {
           filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(1500, ctx.currentTime);
+          filter.frequency.setValueAtTime(1400, ctx.currentTime);
+        } else if (type === 'forest') {
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(600, ctx.currentTime);
+        } else if (type === 'fire') {
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(450, ctx.currentTime);
         }
 
         whiteNoise.connect(filter);
         filter.connect(masterGain);
         whiteNoise.start();
 
-        activeNodesRef.current = { source: whiteNoise, gain: masterGain };
+        let extraInterval: any = null;
+        if (type === 'forest') {
+          // Bird Chirp synthesizer interval
+          const playBirdChirp = () => {
+            if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') return;
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            const baseFreq = 2200 + Math.random() * 800;
+            osc.frequency.setValueAtTime(baseFreq, now);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq + 600, now + 0.1);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq - 300, now + 0.25);
+
+            gain.gain.setValueAtTime(currentVol * 0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.start(now);
+            osc.stop(now + 0.3);
+          };
+          extraInterval = setInterval(() => {
+            if (Math.random() > 0.4) playBirdChirp();
+          }, 4500);
+        } else if (type === 'fire') {
+          // Fire Crackle impulse synthesizer interval
+          const playFireCrackle = () => {
+            if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') return;
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(120 + Math.random() * 200, now);
+
+            gain.gain.setValueAtTime(currentVol * 0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.start(now);
+            osc.stop(now + 0.06);
+          };
+          extraInterval = setInterval(() => {
+            if (Math.random() > 0.3) playFireCrackle();
+          }, 250);
+        }
+
+        activeNodesRef.current = { source: whiteNoise, gain: masterGain, interval: extraInterval };
+        setIsPlayingAudio(true);
       } else if (type === 'bell') {
-        // Singing bowl / Zen bell chime interval
+        // Singing bowl / Zen bell chime interval at 432Hz
         const playBellChime = () => {
           if (!audioCtxRef.current) return;
+          const now = ctx.currentTime;
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
 
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(432, ctx.currentTime); // 432 Hz Zen frequency
+          osc.frequency.setValueAtTime(432, now); // 432 Hz Zen frequency
 
-          gain.gain.setValueAtTime(volume * 0.8, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 4.5);
+          gain.gain.setValueAtTime(currentVol * 0.7, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 5.0);
 
           osc.connect(gain);
-          gain.connect(ctx.destination);
+          gain.connect(masterGain);
 
-          osc.start();
-          osc.stop(ctx.currentTime + 4.5);
+          osc.start(now);
+          osc.stop(now + 5.0);
         };
 
         playBellChime();
-        const bellInterval = setInterval(playBellChime, 10000);
+        const bellInterval = setInterval(playBellChime, 8000);
         activeNodesRef.current = {
           source: {
             stop: () => clearInterval(bellInterval),
             disconnect: () => {},
           } as any,
           gain: masterGain,
+          interval: bellInterval,
         };
+        setIsPlayingAudio(true);
       }
     } catch (err) {
       console.error('Erro ao tocar áudio ambiental:', err);
+      setIsPlayingAudio(false);
     }
   };
 
@@ -363,74 +425,101 @@ export const MonteFujiTab: React.FC<MonteFujiTabProps> = ({
               Sons Ambientais Zen para Estudo
             </h3>
           </div>
-          <span className="text-xs font-medium text-zinc-500">Web Audio Sintetizado</span>
+          <span className="text-xs font-semibold text-rose-500 bg-rose-50 px-2.5 py-0.5 rounded-full dark:bg-rose-950/60 dark:text-rose-300">
+            {isPlayingAudio ? '🔊 Som Ativo' : '🔈 Selecione um Som'}
+          </span>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
           {[
             { id: 'rain', label: '🌧️ Chuva em Kyoto' },
-            { id: 'bell', label: '🎐 Sino de Templo' },
-            { id: 'wind', label: '🎋 Bambuzais' },
-            { id: 'stream', label: '🌊 Rio Zen' },
-          ].map((snd) => (
-            <button
-              key={snd.id}
-              onClick={() => {
-                const nextType = soundType === snd.id ? 'none' : (snd.id as any);
-                setSoundType(nextType);
-                playAmbientSound(nextType);
-              }}
-              className={`rounded-2xl border p-3 text-xs font-bold transition text-left ${
-                soundType === snd.id
-                  ? 'border-rose-400 bg-rose-100/90 text-rose-900 dark:bg-rose-950 dark:text-rose-200'
-                  : 'border-rose-100 bg-rose-50/50 text-zinc-700 hover:bg-rose-100/50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span>{snd.label}</span>
-                {soundType === snd.id && <Sparkles className="h-3.5 w-3.5 text-rose-500 animate-spin" />}
-              </div>
-            </button>
-          ))}
+            { id: 'stream', label: '🌊 Riacho Zen' },
+            { id: 'forest', label: '🌲 Floresta & Pássaros' },
+            { id: 'wind', label: '🎋 Bambuzais ao Vento' },
+            { id: 'bell', label: '🎐 Sino de Templo (432Hz)' },
+            { id: 'fire', label: '🪵 Lareira Acolhedora' },
+          ].map((snd) => {
+            const isSelected = soundType === snd.id && isPlayingAudio;
+            return (
+              <button
+                key={snd.id}
+                onClick={() => {
+                  if (soundType === snd.id && isPlayingAudio) {
+                    stopAmbientSound();
+                  } else {
+                    setSoundType(snd.id as any);
+                    playAmbientSound(snd.id as any);
+                  }
+                }}
+                className={`rounded-2xl border p-3.5 text-xs font-bold transition text-left relative overflow-hidden ${
+                  isSelected
+                    ? 'border-rose-400 bg-rose-100/90 text-rose-950 shadow-xs dark:bg-rose-950 dark:border-rose-700 dark:text-rose-100'
+                    : 'border-rose-100 bg-rose-50/50 text-zinc-700 hover:bg-rose-100/50 dark:border-zinc-800 dark:bg-zinc-800/80 dark:text-zinc-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span>{snd.label}</span>
+                  {isSelected ? (
+                    <Sparkles className="h-4 w-4 text-rose-600 animate-spin shrink-0 ml-1 dark:text-rose-400" />
+                  ) : (
+                    <Volume2 className="h-3.5 w-3.5 text-zinc-400 opacity-60 shrink-0 ml-1" />
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Volume Slider */}
+        {/* Volume Slider & Stop Button */}
         {soundType !== 'none' && (
-          <div className="mt-4 flex items-center space-x-3 rounded-2xl bg-rose-50 p-3 dark:bg-zinc-800">
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-rose-50 p-3.5 dark:bg-zinc-800/80 border border-rose-100 dark:border-zinc-700">
+            <div className="flex items-center space-x-3 flex-1 max-w-md">
+              <button
+                onClick={() => {
+                  const newVol = volume > 0 ? 0 : 0.3;
+                  setVolume(newVol);
+                  if (activeNodesRef.current.gain && audioCtxRef.current) {
+                    activeNodesRef.current.gain.gain.setValueAtTime(
+                      newVol,
+                      audioCtxRef.current.currentTime
+                    );
+                  }
+                }}
+                className="text-rose-600 dark:text-rose-400 p-1 hover:bg-rose-100 rounded-lg dark:hover:bg-zinc-700 transition"
+              >
+                {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </button>
+              <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 shrink-0">Volume:</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={volume}
+                onChange={(e) => {
+                  const newVol = parseFloat(e.target.value);
+                  setVolume(newVol);
+                  if (activeNodesRef.current.gain && audioCtxRef.current) {
+                    activeNodesRef.current.gain.gain.setValueAtTime(
+                      newVol,
+                      audioCtxRef.current.currentTime
+                    );
+                  }
+                }}
+                className="flex-1 accent-rose-500 cursor-pointer h-1.5"
+              />
+              <span className="text-xs font-mono text-zinc-500 w-8 text-right">{Math.round(volume * 100)}%</span>
+            </div>
+
             <button
               onClick={() => {
-                const newVol = volume > 0 ? 0 : 0.3;
-                setVolume(newVol);
-                if (activeNodesRef.current.gain) {
-                  activeNodesRef.current.gain.gain.setValueAtTime(
-                    newVol,
-                    audioCtxRef.current?.currentTime || 0
-                  );
-                }
+                setSoundType('none');
+                stopAmbientSound();
               }}
-              className="text-rose-600 dark:text-rose-400"
+              className="px-3 py-1.5 text-xs font-bold text-zinc-600 hover:text-rose-700 hover:bg-rose-100/80 rounded-xl transition dark:text-zinc-400 dark:hover:text-rose-300 dark:hover:bg-zinc-700"
             >
-              {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              Desligar Som
             </button>
-            <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Volume:</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={volume}
-              onChange={(e) => {
-                const newVol = parseFloat(e.target.value);
-                setVolume(newVol);
-                if (activeNodesRef.current.gain) {
-                  activeNodesRef.current.gain.gain.setValueAtTime(
-                    newVol,
-                    audioCtxRef.current?.currentTime || 0
-                  );
-                }
-              }}
-              className="flex-1 accent-rose-500"
-            />
           </div>
         )}
       </div>

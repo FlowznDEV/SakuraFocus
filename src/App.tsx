@@ -9,7 +9,6 @@ import { StatsNotificationsTab } from './components/StatsNotificationsTab';
 import { AddTaskModal } from './components/AddTaskModal';
 import { LevelUpModal } from './components/LevelUpModal';
 import { SakuraCanvas } from './components/SakuraCanvas';
-import { StripeCheckoutModal } from './components/StripeCheckoutModal';
 
 import { Task, UserStats, Badge, ZenQuote, NotificationSetting, LevelInfo } from './types';
 import {
@@ -116,16 +115,6 @@ export default function App() {
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isLevelModalOpen, setIsLevelModalOpen] = useState<boolean>(false);
-  const [isStripeModalOpen, setIsStripeModalOpen] = useState<boolean>(false);
-  const [isSubscribed, setIsSubscribed] = useState<boolean>(() => {
-    return localStorage.getItem('sakurafocus_is_subscribed') === 'true';
-  });
-
-  const handleConfirmPaid = () => {
-    setIsSubscribed(true);
-    localStorage.setItem('sakurafocus_is_subscribed', 'true');
-    setIsStripeModalOpen(false);
-  };
 
   // Sync to LocalStorage
   useEffect(() => {
@@ -383,21 +372,12 @@ export default function App() {
     addXp(xpBonus, false, false);
   };
 
-  // Calculate Header Summary & Paywall Lock state
+  // Calculate Header Summary
   const todayStr = new Date().toISOString().split('T')[0];
   const completedTodayCount = tasks.filter((t) => t.completed).length;
   const totalTodayCount = tasks.length;
   const todayHistory = userStats.history.find((h) => h.date === todayStr);
   const xpEarnedToday = todayHistory ? todayHistory.xpEarned : 0;
-
-  const isPaywallLocked = completedTodayCount >= 3 && !isSubscribed;
-
-  // Auto-trigger paywall screen when user completes 3 tasks today
-  useEffect(() => {
-    if (isPaywallLocked) {
-      setIsStripeModalOpen(true);
-    }
-  }, [isPaywallLocked]);
 
   return (
     <div className="relative min-h-screen bg-[#FDFBFB] text-[#4A4A4A] transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-100 font-sans selection:bg-pink-200 selection:text-pink-900">
@@ -440,7 +420,6 @@ export default function App() {
             sakuraActive={sakuraActive}
             toggleSakura={() => setSakuraActive(!sakuraActive)}
             onOpenLevelModal={() => setIsLevelModalOpen(true)}
-            onOpenStripeModal={() => setIsStripeModalOpen(true)}
           />
         )}
 
@@ -603,14 +582,6 @@ export default function App() {
         onClose={() => setIsLevelModalOpen(false)}
         currentLevelInfo={currentLevelInfo}
         totalXp={userStats.totalXp}
-      />
-
-      <StripeCheckoutModal
-        isOpen={isStripeModalOpen || isPaywallLocked}
-        onClose={() => setIsStripeModalOpen(false)}
-        isLocked={isPaywallLocked}
-        onConfirmPaid={handleConfirmPaid}
-        user={null}
       />
     </div>
   );

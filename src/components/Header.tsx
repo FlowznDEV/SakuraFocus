@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flame, Moon, Sun, Flower, Trophy, Sparkles, Target, CheckCircle2, CreditCard } from 'lucide-react';
+import { Flame, Moon, Sun, Flower, Trophy, Sparkles, Target, CheckCircle2 } from 'lucide-react';
 import { LevelInfo } from '../types';
 
 interface HeaderProps {
@@ -13,7 +13,6 @@ interface HeaderProps {
   sakuraActive: boolean;
   toggleSakura: () => void;
   onOpenLevelModal: () => void;
-  onOpenStripeModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,7 +26,6 @@ export const Header: React.FC<HeaderProps> = ({
   sakuraActive,
   toggleSakura,
   onOpenLevelModal,
-  onOpenStripeModal,
 }) => {
   const dailyProgressPercent =
     totalTasksToday > 0 ? Math.round((completedTasksToday / totalTasksToday) * 100) : 0;
@@ -99,15 +97,6 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Quick Action Controls */}
             <div className="flex items-center space-x-1.5 border-l border-gray-200/80 dark:border-zinc-800 pl-4">
-              <button
-                id="header-stripe-btn"
-                onClick={onOpenStripeModal}
-                className="p-2 rounded-xl text-pink-600 bg-pink-50/80 border border-pink-200 hover:bg-pink-100/90 transition dark:bg-pink-950/60 dark:border-pink-800 dark:text-pink-300"
-                title="Stripe Checkout & Sakura Pro"
-              >
-                <CreditCard className="h-4 w-4" />
-              </button>
-
               <button
                 id="header-level-btn"
                 onClick={onOpenLevelModal}
