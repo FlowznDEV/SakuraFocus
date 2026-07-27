@@ -31,6 +31,18 @@ export const StripeCheckoutModal: React.FC<StripeCheckoutModalProps> = ({
     try {
       const emailQuery = user?.email ? `?email=${encodeURIComponent(user.email)}` : '';
       const response = await fetch(`/api/check-subscription${emailQuery}`);
+      
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        console.warn('Resposta não-JSON ao consultar o banco de dados:', text);
+        setDbMessage({
+          type: 'info',
+          text: 'Ainda não foi encontrado nenhum pagamento ativo no banco de dados. Se você acabou de pagar, aguarde alguns segundos e clique em verificar novamente.'
+        });
+        return;
+      }
+
       const data = await response.json();
 
       if (data.subscribed) {
@@ -44,7 +56,9 @@ export const StripeCheckoutModal: React.FC<StripeCheckoutModalProps> = ({
       } else {
         setDbMessage({
           type: 'info',
-          text: 'Nenhum registro de pagamento ativo foi encontrado na tabela "subscriptions" do Supabase até o momento. Se já realizou o pagamento via Stripe, aguarde a atualização do webhook e clique em verificar novamente.'
+          text: data.error
+            ? `Erro de consulta no banco: ${data.error}. Nenhum registro de pagamento ativo encontrado.`
+            : 'Nenhum registro de pagamento ativo foi encontrado na tabela "subscriptions" do Supabase até o momento. Se já realizou o pagamento via Stripe, aguarde a atualização do webhook e clique em verificar novamente.'
         });
       }
     } catch (err: any) {

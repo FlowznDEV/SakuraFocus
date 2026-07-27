@@ -195,58 +195,7 @@ export const INITIAL_BADGES: Badge[] = [
   }
 ];
 
-export const INITIAL_TASKS: Task[] = [
-  {
-    id: 't-1',
-    title: 'Organizar mesa de estudos por 2 minutos',
-    category: 'Estudo',
-    difficulty: 'Fácil',
-    xpReward: 20,
-    completed: false,
-    createdAt: new Date().toISOString(),
-    estimatedMinutes: 2,
-    subtasks: [
-      { id: 'st-1', title: 'Remover copos e papéis desnecessários', completed: false },
-      { id: 'st-2', title: 'Deixar apenas caderno/notebook na mesa', completed: false }
-    ]
-  },
-  {
-    id: 't-2',
-    title: '1 Sessão de Foco Profundo no Monte Fuji (25 min)',
-    category: 'Mente',
-    difficulty: 'Média',
-    xpReward: 35,
-    completed: false,
-    createdAt: new Date().toISOString(),
-    estimatedMinutes: 25,
-    subtasks: [
-      { id: 'st-3', title: 'Ativar modo não perturbe no celular', completed: false },
-      { id: 'st-4', title: 'Escolher um som de fundo zen (Chuva/Templo)', completed: false }
-    ]
-  },
-  {
-    id: 't-3',
-    title: 'Beber 1 copo de água e respirar fundo 5 vezes',
-    category: 'Saúde',
-    difficulty: 'Fácil',
-    xpReward: 20,
-    completed: false,
-    createdAt: new Date().toISOString(),
-    estimatedMinutes: 1,
-    subtasks: []
-  },
-  {
-    id: 't-4',
-    title: 'Definir as 3 maiores prioridades de amanhã',
-    category: 'Trabalho',
-    difficulty: 'Média',
-    xpReward: 35,
-    completed: false,
-    createdAt: new Date().toISOString(),
-    estimatedMinutes: 10,
-    subtasks: []
-  }
-];
+export const INITIAL_TASKS: Task[] = [];
 
 export const INITIAL_NOTIFICATIONS: NotificationSetting[] = [
   {
