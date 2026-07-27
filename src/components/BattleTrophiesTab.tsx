@@ -1,6 +1,6 @@
 import React from 'react';
 import { Badge, UserStats } from '../types';
-import { Trophy, Shield, Award, Flame, CheckCircle2, Lock, Sparkles, Swords, Crown, Calendar, ExternalLink } from 'lucide-react';
+import { Trophy, Shield, Award, Flame, CheckCircle2, Lock, Sparkles, Swords, Calendar } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface BattleTrophiesTabProps {
@@ -13,15 +13,9 @@ interface BattleTrophiesTabProps {
 export const BattleTrophiesTab: React.FC<BattleTrophiesTabProps> = ({
   badges,
   userStats,
-  completedTasksCount,
   onClaimBadgeReward,
 }) => {
   const daysOfWeek = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-
-  // Check if user has completed at least 3 tasks
-  const hasCompletedThreeTasks =
-    userStats.tasksCompletedCount >= 3 ||
-    (completedTasksCount !== undefined && completedTasksCount >= 3);
 
   const unlockedCount = badges.filter((b) => b.unlocked).length;
 
@@ -66,39 +60,6 @@ export const BattleTrophiesTab: React.FC<BattleTrophiesTabProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Premium Subscription Banner (Triggered after 3 completed tasks in Conquistas) */}
-      {hasCompletedThreeTasks && (
-        <div className="relative overflow-hidden rounded-[32px] border border-pink-200/90 bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 p-6 sm:p-8 text-white shadow-xl animate-fade-in">
-          <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-          <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1.5 max-w-xl">
-              <div className="inline-flex items-center space-x-1.5 rounded-full bg-white/20 backdrop-blur-md px-3 py-1 text-xs font-bold text-white">
-                <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                <span>Oferta Especial Desbloqueada!</span>
-              </div>
-              <h3 className="text-2xl font-serif font-bold text-white">
-                Parabéns pelas 3 tarefas concluídas!
-              </h3>
-              <p className="text-xs text-pink-100/90 leading-relaxed">
-                Você atingiu a meta de foco inicial. Libere o acesso ilimitado a todas as ferramentas com o Sakura Pro.
-              </p>
-            </div>
-
-            <a
-              href="https://buy.stripe.com/3cI4gy2W34zp413avp7Vm02"
-              target="_blank"
-              rel="noopener noreferrer"
-              id="btn-assinar-premium-stripe"
-              className="inline-flex items-center justify-center space-x-2 rounded-2xl bg-white px-6 py-3.5 text-xs font-bold text-pink-600 hover:bg-pink-50 hover:scale-105 active:scale-95 transition-all shadow-lg shrink-0"
-            >
-              <Crown className="h-4 w-4 text-amber-500" />
-              <span>Assinar Premium</span>
-              <ExternalLink className="h-3.5 w-3.5 text-pink-400" />
-            </a>
-          </div>
-        </div>
-      )}
 
       {/* Weekly Consistency Battle Heatmap / Matrix */}
       <div className="rounded-[32px] border border-pink-100/80 bg-white/50 p-6 shadow-sm backdrop-blur-[12px] backdrop-saturate-[180%] dark:border-zinc-800/80 dark:bg-zinc-900/50">
