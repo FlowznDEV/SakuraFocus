@@ -9,8 +9,6 @@ import { StatsNotificationsTab } from './components/StatsNotificationsTab';
 import { AddTaskModal } from './components/AddTaskModal';
 import { LevelUpModal } from './components/LevelUpModal';
 import { SakuraCanvas } from './components/SakuraCanvas';
-import { SupabaseAuthModal } from './components/SupabaseAuthModal';
-import { SupabaseInfoCard } from './components/SupabaseInfoCard';
 import { StripeCheckoutModal } from './components/StripeCheckoutModal';
 
 import { Task, UserStats, Badge, ZenQuote, NotificationSetting, LevelInfo } from './types';
@@ -122,16 +120,6 @@ export default function App() {
   const [isSubscribed, setIsSubscribed] = useState<boolean>(() => {
     return localStorage.getItem('sakurafocus_is_subscribed') === 'true';
   });
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState<boolean>(() => {
-    // Exibe a tela de login na primeira visita do usuário ao site
-    const hasVisited = localStorage.getItem('sakurafocus_first_visit_shown');
-    return !hasVisited;
-  });
-
-  const handleCloseSupabaseModal = () => {
-    localStorage.setItem('sakurafocus_first_visit_shown', 'true');
-    setIsSupabaseModalOpen(false);
-  };
 
   const handleConfirmPaid = () => {
     setIsSubscribed(true);
@@ -452,7 +440,6 @@ export default function App() {
             sakuraActive={sakuraActive}
             toggleSakura={() => setSakuraActive(!sakuraActive)}
             onOpenLevelModal={() => setIsLevelModalOpen(true)}
-            onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
             onOpenStripeModal={() => setIsStripeModalOpen(true)}
           />
         )}
@@ -586,7 +573,6 @@ export default function App() {
                     )
                   }
                 />
-                <SupabaseInfoCard onOpenAuthModal={() => setIsSupabaseModalOpen(true)} />
               </>
             )}
           </div>
@@ -617,13 +603,6 @@ export default function App() {
         onClose={() => setIsLevelModalOpen(false)}
         currentLevelInfo={currentLevelInfo}
         totalXp={userStats.totalXp}
-      />
-
-      <SupabaseAuthModal
-        isOpen={isSupabaseModalOpen}
-        onClose={handleCloseSupabaseModal}
-        localStats={userStats}
-        localTasks={tasks}
       />
 
       <StripeCheckoutModal

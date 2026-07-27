@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flame, Moon, Sun, Flower, Trophy, Sparkles, Target, CheckCircle2, Database, CreditCard } from 'lucide-react';
+import { Flame, Moon, Sun, Flower, Trophy, Sparkles, Target, CheckCircle2, CreditCard } from 'lucide-react';
 import { LevelInfo } from '../types';
 
 interface HeaderProps {
@@ -13,7 +13,6 @@ interface HeaderProps {
   sakuraActive: boolean;
   toggleSakura: () => void;
   onOpenLevelModal: () => void;
-  onOpenSupabaseModal?: () => void;
   onOpenStripeModal?: () => void;
 }
 
@@ -28,7 +27,6 @@ export const Header: React.FC<HeaderProps> = ({
   sakuraActive,
   toggleSakura,
   onOpenLevelModal,
-  onOpenSupabaseModal,
   onOpenStripeModal,
 }) => {
   const dailyProgressPercent =
@@ -108,15 +106,6 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Stripe Checkout & Sakura Pro"
               >
                 <CreditCard className="h-4 w-4" />
-              </button>
-
-              <button
-                id="header-supabase-btn"
-                onClick={onOpenSupabaseModal}
-                className="p-2 rounded-xl text-emerald-600 bg-emerald-50/70 border border-emerald-100 hover:bg-emerald-100/80 transition dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-300"
-                title="Login no Banco de Dados"
-              >
-                <Database className="h-4 w-4" />
               </button>
 
               <button
