@@ -1,0 +1,6 @@
+{
+  "name": "SakuraFocus",
+  "description": "Aplicativo gamificado de foco e produtividade com estética japonesa zen, níveis de XP, cronômetro Monte Fuji, conquistas e frases motivacionais geradas por IA Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
