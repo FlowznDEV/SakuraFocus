@@ -4,23 +4,65 @@ import { CreditCard, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, AlertCir
 interface StripeCheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isLocked?: boolean;
+  onConfirmPaid?: () => void;
   user?: {
     id: string;
     email: string;
   } | null;
 }
 
-export const StripeCheckoutModal: React.FC<StripeCheckoutModalProps> = ({ isOpen, onClose, user }) => {
+export const StripeCheckoutModal: React.FC<StripeCheckoutModalProps> = ({
+  isOpen,
+  onClose,
+  isLocked = false,
+  onConfirmPaid,
+  user,
+}) => {
   const [loading, setLoading] = useState<boolean>(false);
+  const [checkingDb, setCheckingDb] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [checkoutSuccess, setCheckoutSuccess] = useState<boolean>(false);
+  const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  const checkDatabasePayment = async () => {
+    setCheckingDb(true);
+    setDbMessage(null);
+    try {
+      const emailQuery = user?.email ? `?email=${encodeURIComponent(user.email)}` : '';
+      const response = await fetch(`/api/check-subscription${emailQuery}`);
+      const data = await response.json();
+
+      if (data.subscribed) {
+        setDbMessage({
+          type: 'success',
+          text: 'Pagamento verificado no banco de dados Supabase! Seu acesso ao Sakura Pro foi liberado com sucesso.'
+        });
+        if (onConfirmPaid) {
+          onConfirmPaid();
+        }
+      } else {
+        setDbMessage({
+          type: 'info',
+          text: 'Nenhum registro de pagamento ativo foi encontrado na tabela "subscriptions" do Supabase até o momento. Se já realizou o pagamento via Stripe, aguarde a atualização do webhook e clique em verificar novamente.'
+        });
+      }
+    } catch (err: any) {
+      setDbMessage({
+        type: 'error',
+        text: 'Erro ao consultar o banco de dados do Supabase: ' + (err.message || String(err))
+      });
+    } finally {
+      setCheckingDb(false);
+    }
+  };
 
   useEffect(() => {
     // Check URL parameters for Checkout return status
     const params = new URLSearchParams(window.location.search);
     if (params.get('checkout') === 'success') {
       setCheckoutSuccess(true);
+      checkDatabasePayment();
     }
   }, []);
 
@@ -30,12 +72,12 @@ export const StripeCheckoutModal: React.FC<StripeCheckoutModalProps> = ({ isOpen
     setLoading(true);
     setError(null);
 
-    const isYearly = selectedPlan === 'yearly';
-    const planName = isYearly ? 'Sakura Pro - Plano Anual' : 'Sakura Pro - Plano Mensal';
-    const amount = isYearly ? 2900 : 1490; // R$ 29,00 or R$ 14,90 em centavos
+    const planName = 'Sakura Pro - Plano Único';
+    const amount = 3700; // R$ 37,00 em centavos
+    const directStripePaymentLink = 'https://buy.stripe.com/3cI4gy2W34zp413avp7Vm02';
 
     try {
-      // Chama o endpoint /create-checkout conforme especificação
+      // Chama o endpoint /create-checkout
       const response = await fetch('/create-checkout', {
         method: 'POST',
         headers: {
@@ -54,19 +96,18 @@ export const StripeCheckoutModal: React.FC<StripeCheckoutModalProps> = ({ isOpen
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.detail || data.error || 'Erro ao conectar ao Stripe Checkout.');
+      if (response.ok && data.url) {
+        window.location.href = data.url;
+        return;
       }
 
-      // Requisito: O endpoint retorna apenas a URL e o frontend redireciona automaticamente
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error('Nenhuma URL do Stripe foi retornada pelo servidor.');
-      }
+      // Se a chave da Stripe do servidor falhar por IP ou autorização, usa o link direto da Stripe
+      console.warn('Sessão backend falhou ou restrição de IP, redirecionando para link direto da Stripe:', data.detail || data.error);
+      window.open(directStripePaymentLink, '_blank', 'noopener,noreferrer');
+      setLoading(false);
     } catch (err: any) {
-      console.error('Erro no checkout:', err);
-      setError(err.message || 'Ocorreu um erro ao gerar a sessão do Stripe Checkout.');
+      console.warn('Erro ao conectar ao servidor de checkout, usando link direto da Stripe:', err);
+      window.open(directStripePaymentLink, '_blank', 'noopener,noreferrer');
       setLoading(false);
     }
   };
@@ -82,84 +123,92 @@ export const StripeCheckoutModal: React.FC<StripeCheckoutModalProps> = ({ isOpen
               <CreditCard className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800 dark:text-rose-100">Sakura Pro & Stripe Checkout</h2>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-rose-100">
+                {isLocked ? '🔒 Limite Gratuito Atingido (3/3)' : 'Sakura Pro & Stripe Checkout'}
+              </h2>
               <p className="text-xs text-pink-700/70 dark:text-rose-200/60 font-medium">
-                Pagamentos Seguros com FastAPI & Supabase
+                {isLocked
+                  ? 'Assine o Sakura Pro para desbloquear o acesso total ao aplicativo'
+                  : 'Acesso Vitalício e Ilimitado ao Sakura Pro'}
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-full p-2 text-rose-400 hover:bg-pink-100/80 dark:text-rose-300 dark:hover:bg-zinc-800 transition"
-          >
-            ✕
-          </button>
+          {!isLocked && (
+            <button
+              onClick={onClose}
+              className="rounded-full p-2 text-rose-400 hover:bg-pink-100/80 dark:text-rose-300 dark:hover:bg-zinc-800 transition"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
+        {/* Locked Banner */}
+        {isLocked && (
+          <div className="mt-4 rounded-2xl border border-pink-300/80 bg-gradient-to-r from-pink-500 to-rose-500 p-4 text-white shadow-md">
+            <div className="flex items-start space-x-3">
+              <Lock className="h-5 w-5 shrink-0 mt-0.5 text-amber-300" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold text-sm">Acesso Bloqueado!</p>
+                <p className="opacity-95">
+                  Você concluiu 3 tarefas gratuitas hoje. Para continuar utilizando o SakuraFocus e ter acesso ilimitado, realize o pagamento do plano Sakura Pro.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Database verification message banner */}
+        {dbMessage && (
+          <div
+            className={`mt-4 rounded-2xl border p-4 text-xs flex items-start space-x-3 ${
+              dbMessage.type === 'success'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200'
+                : dbMessage.type === 'error'
+                ? 'border-rose-300 bg-rose-50 text-rose-950 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200'
+                : 'border-blue-300 bg-blue-50 text-blue-950 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-200'
+            }`}
+          >
+            {dbMessage.type === 'success' ? (
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            )}
+            <div>
+              <p className="font-bold">
+                {dbMessage.type === 'success' ? 'Pagamento Confirmado no Supabase!' : 'Verificação do Banco de Dados'}
+              </p>
+              <p className="text-[11px] mt-0.5 opacity-90">{dbMessage.text}</p>
+            </div>
+          </div>
+        )}
+
         {/* Success Alert if coming back from Stripe */}
-        {checkoutSuccess && (
+        {checkoutSuccess && !dbMessage && (
           <div className="mt-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-4 text-xs text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300 flex items-start space-x-3">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-emerald-900 dark:text-emerald-200">Pagamento Confirmado pelo Stripe!</p>
+              <p className="font-bold text-emerald-900 dark:text-emerald-200">Retorno do Checkout do Stripe</p>
               <p className="text-[11px] mt-0.5 text-emerald-800/80 dark:text-emerald-300/80">
-                O webhook do Stripe recebeu o evento <code className="font-mono bg-emerald-100 dark:bg-emerald-900/60 px-1 py-0.5 rounded">checkout.session.completed</code> e atualizou sua assinatura na tabela <code className="font-mono bg-emerald-100 dark:bg-emerald-900/60 px-1 py-0.5 rounded">subscriptions</code> no Supabase.
+                Consultando a tabela <code className="font-mono bg-emerald-100 dark:bg-emerald-900/60 px-1 py-0.5 rounded">subscriptions</code> no Supabase para validar a confirmação do webhook...
               </p>
             </div>
           </div>
         )}
 
-        {/* Security Rule Highlights */}
-        <div className="mt-4 rounded-2xl border border-pink-200/60 bg-white/70 p-3.5 text-xs text-slate-700 dark:border-zinc-800 dark:bg-zinc-800/60 dark:text-rose-200 space-y-1.5">
-          <div className="flex items-center space-x-2 font-bold text-pink-600 dark:text-rose-300">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Arquitetura de Segurança Stripe</span>
-          </div>
-          <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-slate-600 dark:text-rose-200/70">
-            <li><strong>STRIPE_SECRET_KEY:</strong> Mantida estritamente privada no backend FastAPI/Node.</li>
-            <li><strong>Frontend Seguro:</strong> O navegador nunca acessa chaves privadas de pagamento.</li>
-            <li><strong>Redirecionamento Direto:</strong> O backend retorna apenas a URL oficial do Checkout.</li>
-            <li><strong>Sincronização Webhook:</strong> Evento atualiza a tabela <code className="font-mono">subscriptions</code> via Supabase Service Role.</li>
-          </ul>
-        </div>
-
-        {/* Plan Selector */}
+        {/* Plan Section - Plano Único */}
         <div className="mt-5 space-y-3">
-          <label className="block text-xs font-bold text-slate-700 dark:text-rose-200">
-            Selecione seu Plano Sakura Pro:
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setSelectedPlan('monthly')}
-              className={`rounded-2xl border p-4 text-left transition ${
-                selectedPlan === 'monthly'
-                  ? 'border-pink-500 bg-pink-50/80 shadow-xs dark:border-pink-500 dark:bg-pink-950/30'
-                  : 'border-pink-100/80 bg-white/60 hover:bg-pink-50/30 dark:border-zinc-800 dark:bg-zinc-800/40'
-              }`}
-            >
-              <div className="text-xs font-bold text-slate-800 dark:text-rose-100">Mensal</div>
-              <div className="text-lg font-extrabold text-pink-600 dark:text-pink-400 mt-1">R$ 14,90<span className="text-[10px] font-normal text-slate-500">/mês</span></div>
-              <div className="text-[10px] text-slate-500 dark:text-rose-200/60 mt-1">Flexibilidade total sem fidelidade</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedPlan('yearly')}
-              className={`relative rounded-2xl border p-4 text-left transition ${
-                selectedPlan === 'yearly'
-                  ? 'border-pink-500 bg-pink-50/80 shadow-xs dark:border-pink-500 dark:bg-pink-950/30'
-                  : 'border-pink-100/80 bg-white/60 hover:bg-pink-50/30 dark:border-zinc-800 dark:bg-zinc-800/40'
-              }`}
-            >
-              <span className="absolute -top-2 -right-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 px-2 py-0.5 text-[9px] font-bold text-white shadow-xs">
-                Economize 80%
-              </span>
-              <div className="text-xs font-bold text-slate-800 dark:text-rose-100">Anual</div>
-              <div className="text-lg font-extrabold text-pink-600 dark:text-pink-400 mt-1">R$ 29,00<span className="text-[10px] font-normal text-slate-500">/ano</span></div>
-              <div className="text-[10px] text-slate-500 dark:text-rose-200/60 mt-1">Apenas R$ 2,41 por mês</div>
-            </button>
+          <div className="relative rounded-2xl border border-pink-500 bg-pink-50/80 p-5 text-left shadow-xs dark:border-pink-500 dark:bg-pink-950/30">
+            <span className="absolute -top-2.5 right-4 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 px-3 py-0.5 text-[10px] font-bold text-white shadow-xs">
+              Acesso Vitalício
+            </span>
+            <div className="text-sm font-bold text-slate-800 dark:text-rose-100">Sakura Pro - Plano Único</div>
+            <div className="text-2xl font-extrabold text-pink-600 dark:text-pink-400 mt-1">
+              R$ 37,00 <span className="text-xs font-normal text-slate-500 dark:text-rose-200/70">(pago uma única vez)</span>
+            </div>
+            <div className="text-xs text-slate-600 dark:text-rose-200/80 mt-1">
+              Pagamento único sem mensalidades ou cobranças recorrentes.
+            </div>
           </div>
 
           {/* Features list */}
@@ -195,37 +244,71 @@ export const StripeCheckoutModal: React.FC<StripeCheckoutModalProps> = ({ isOpen
             </div>
           )}
 
-          {/* Checkout Submit Button */}
-          <button
-            type="button"
-            onClick={handleCheckout}
-            disabled={loading}
-            className="w-full flex items-center justify-center space-x-2 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-400 to-pink-500 hover:opacity-95 py-3.5 text-xs font-bold text-white transition shadow-md disabled:opacity-50"
-          >
-            {loading ? (
-              <>
-                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Gerando Sessão do Stripe Checkout...</span>
-              </>
-            ) : (
-              <>
-                <Lock className="h-4 w-4" />
-                <span>Ir para o Stripe Checkout</span>
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
-          </button>
+          {/* Checkout Submit Button & Direct Link */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={handleCheckout}
+              disabled={loading}
+              className="w-full flex items-center justify-center space-x-2 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-400 to-pink-500 hover:opacity-95 py-3.5 text-xs font-bold text-white transition shadow-md disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Redirecionando para o Stripe...</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="h-4 w-4" />
+                  <span>Ir para o Stripe Checkout</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+
+            <a
+              href="https://buy.stripe.com/3cI4gy2W34zp413avp7Vm02"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center space-x-1.5 rounded-2xl border border-pink-200 bg-white/80 hover:bg-pink-50 py-2.5 text-xs font-bold text-pink-700 transition dark:border-zinc-800 dark:bg-zinc-800/60 dark:text-rose-200 dark:hover:bg-zinc-800"
+            >
+              <span>Abrir Checkout em Nova Aba (Direct Link)</span>
+              <ExternalLink className="h-3.5 w-3.5 text-pink-500" />
+            </a>
+
+            {/* Verification Button against Supabase Database */}
+            <button
+              type="button"
+              onClick={checkDatabasePayment}
+              disabled={checkingDb}
+              className="w-full flex items-center justify-center space-x-2 rounded-2xl border border-pink-300 bg-pink-50/80 hover:bg-pink-100/80 py-2.5 text-xs font-bold text-pink-800 transition dark:border-pink-800 dark:bg-zinc-800 dark:text-rose-200 dark:hover:bg-zinc-700 disabled:opacity-50"
+            >
+              {checkingDb ? (
+                <>
+                  <div className="h-3.5 w-3.5 border-2 border-pink-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Verificando Banco de Dados...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="h-4 w-4 text-pink-600 dark:text-pink-400" />
+                  <span>Verificar Status do Pagamento no Banco de Dados</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-xl bg-pink-100/80 hover:bg-pink-200/80 px-5 py-2.5 text-xs font-bold text-pink-800 dark:bg-zinc-800 dark:text-rose-200 dark:hover:bg-zinc-700 transition"
-          >
-            Fechar
-          </button>
-        </div>
+        {!isLocked && (
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={onClose}
+              className="rounded-xl bg-pink-100/80 hover:bg-pink-200/80 px-5 py-2.5 text-xs font-bold text-pink-800 dark:bg-zinc-800 dark:text-rose-200 dark:hover:bg-zinc-700 transition"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
 
       </div>
     </div>

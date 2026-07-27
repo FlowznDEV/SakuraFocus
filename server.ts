@@ -148,6 +148,51 @@ async function handleStripeWebhook(req: express.Request, res: express.Response) 
 app.post('/webhook', handleStripeWebhook);
 app.post('/api/webhook', handleStripeWebhook);
 
+// Handler para verificar status da assinatura no Supabase
+async function handleCheckSubscription(req: express.Request, res: express.Response) {
+  try {
+    const admin = getSupabaseAdmin();
+    if (!admin) {
+      return res.status(500).json({ subscribed: false, error: 'Supabase admin não configurado' });
+    }
+
+    const email = (req.query.email as string) || (req.query.user_email as string);
+    const userId = (req.query.user_id as string) || (req.query.userId as string);
+
+    let query = admin.from('subscriptions').select('*').in('status', ['active', 'paid', 'complete']);
+
+    if (email) {
+      query = query.eq('user_email', email);
+    } else if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Erro ao consultar a tabela subscriptions:', error);
+      return res.status(500).json({ subscribed: false, error: error.message });
+    }
+
+    if (data && data.length > 0) {
+      return res.json({ subscribed: true, subscription: data[0] });
+    }
+
+    // Caso não passe email ou o filtro seja genérico, verifica se há qualquer pagamento registrado como ativo no Supabase
+    const { data: anyActive } = await admin.from('subscriptions').select('*').in('status', ['active', 'paid', 'complete']).limit(1);
+    if (anyActive && anyActive.length > 0) {
+      return res.json({ subscribed: true, subscription: anyActive[0] });
+    }
+
+    return res.json({ subscribed: false });
+  } catch (err: any) {
+    return res.status(500).json({ subscribed: false, error: err.message || String(err) });
+  }
+}
+
+app.get('/api/check-subscription', handleCheckSubscription);
+app.get('/check-subscription', handleCheckSubscription);
+
 // Initialize GoogleGenAI client lazily or when requested
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;

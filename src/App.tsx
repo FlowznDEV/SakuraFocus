@@ -119,6 +119,9 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isLevelModalOpen, setIsLevelModalOpen] = useState<boolean>(false);
   const [isStripeModalOpen, setIsStripeModalOpen] = useState<boolean>(false);
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(() => {
+    return localStorage.getItem('sakurafocus_is_subscribed') === 'true';
+  });
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState<boolean>(() => {
     // Exibe a tela de login na primeira visita do usuário ao site
     const hasVisited = localStorage.getItem('sakurafocus_first_visit_shown');
@@ -128,6 +131,12 @@ export default function App() {
   const handleCloseSupabaseModal = () => {
     localStorage.setItem('sakurafocus_first_visit_shown', 'true');
     setIsSupabaseModalOpen(false);
+  };
+
+  const handleConfirmPaid = () => {
+    setIsSubscribed(true);
+    localStorage.setItem('sakurafocus_is_subscribed', 'true');
+    setIsStripeModalOpen(false);
   };
 
   // Sync to LocalStorage
@@ -386,12 +395,21 @@ export default function App() {
     addXp(xpBonus, false, false);
   };
 
-  // Calculate Header Summary
+  // Calculate Header Summary & Paywall Lock state
   const todayStr = new Date().toISOString().split('T')[0];
   const completedTodayCount = tasks.filter((t) => t.completed).length;
   const totalTodayCount = tasks.length;
   const todayHistory = userStats.history.find((h) => h.date === todayStr);
   const xpEarnedToday = todayHistory ? todayHistory.xpEarned : 0;
+
+  const isPaywallLocked = completedTodayCount >= 3 && !isSubscribed;
+
+  // Auto-trigger paywall screen when user completes 3 tasks today
+  useEffect(() => {
+    if (isPaywallLocked) {
+      setIsStripeModalOpen(true);
+    }
+  }, [isPaywallLocked]);
 
   return (
     <div className="relative min-h-screen bg-[#FDFBFB] text-[#4A4A4A] transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-100 font-sans selection:bg-pink-200 selection:text-pink-900">
@@ -547,6 +565,7 @@ export default function App() {
               <BattleTrophiesTab
                 badges={badges}
                 userStats={userStats}
+                completedTasksCount={completedTodayCount}
                 onClaimBadgeReward={handleClaimBadgeReward}
               />
             )}
@@ -608,8 +627,10 @@ export default function App() {
       />
 
       <StripeCheckoutModal
-        isOpen={isStripeModalOpen}
+        isOpen={isStripeModalOpen || isPaywallLocked}
         onClose={() => setIsStripeModalOpen(false)}
+        isLocked={isPaywallLocked}
+        onConfirmPaid={handleConfirmPaid}
         user={null}
       />
     </div>

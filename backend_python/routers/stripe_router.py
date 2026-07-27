@@ -166,3 +166,35 @@ async def stripe_webhook(request: Request, stripe_signature: Optional[str] = Hea
                 print(f"[STRIPE WEBHOOK ERROR] Erro ao gravar no Supabase: {str(e)}")
 
     return {"status": "success", "event_received": event_type}
+
+
+@router.get("/check-subscription", summary="Verificar status da assinatura no banco de dados Supabase")
+def check_subscription(email: Optional[str] = None, user_id: Optional[str] = None):
+    """
+    Endpoint para consultar no banco de dados do Supabase se o usuário possui
+    uma assinatura com status 'active' ou 'paid'.
+    """
+    supabase = get_supabase_admin_client()
+    if not supabase:
+        return {"subscribed": False, "error": "Cliente Supabase não configurado"}
+
+    try:
+        query = supabase.table("subscriptions").select("*").in_("status", ["active", "paid", "complete"])
+        if email:
+            query = query.eq("user_email", email)
+        elif user_id:
+            query = query.eq("user_id", user_id)
+
+        res = query.execute()
+        if res.data and len(res.data) > 0:
+            return {"subscribed": True, "subscription": res.data[0]}
+
+        # Qualquer assinatura ativa no Supabase
+        any_active = supabase.table("subscriptions").select("*").in_("status", ["active", "paid", "complete"]).limit(1).execute()
+        if any_active.data and len(any_active.data) > 0:
+            return {"subscribed": True, "subscription": any_active.data[0]}
+
+        return {"subscribed": False}
+    except Exception as e:
+        return {"subscribed": False, "error": str(e)}
+
